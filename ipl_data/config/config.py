@@ -175,9 +175,7 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "standard": {
-            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        },
+        "standard": {"format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"},
     },
     "handlers": {
         "file": {
@@ -195,12 +193,8 @@ LOGGING = {
         },
     },
     "loggers": {
-        "": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": True
-        },
-    }
+        "": {"handlers": ["console", "file"], "level": "INFO", "propagate": True},
+    },
 }
 
 # Selenium WebDriver Settings
@@ -217,5 +211,5 @@ WEBDRIVER_SETTINGS = {
         "--disable-blink-features=AutomationControlled",
         "--disable-infobars",
         "--start-maximized",
-    ]
-} 
+    ],
+}

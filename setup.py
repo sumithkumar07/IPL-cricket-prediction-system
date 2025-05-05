@@ -13,7 +13,7 @@ setup(
         "fake-useragent",
         "python-dotenv",
         "webdriver-manager",
-        "undetected-chromedriver>=3.5.0"
+        "undetected-chromedriver>=3.5.0",
     ],
     python_requires=">=3.7",
-) 
+)
