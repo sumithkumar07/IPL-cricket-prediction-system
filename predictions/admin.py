@@ -1,36 +1,35 @@
 """
-Admin interface for IPL prediction system models.
+Admin configuration for IPL prediction models.
 """
 
 from django.contrib import admin
-from .models import (
-    Team, Player, Match, PlayerPerformance,
-    Prediction, PlayerPrediction
-)
+from .models import Team, Player, Match, PlayerPerformance, Prediction, PlayerPrediction
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
     list_display = ('name', 'short_name', 'founded_year', 'home_ground', 'win_percentage')
-    search_fields = ('name', 'short_name', 'home_ground')
+    search_fields = ('name', 'short_name')
     list_filter = ('founded_year',)
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
     list_display = ('name', 'team', 'role', 'nationality', 'is_active')
-    search_fields = ('name', 'team__name', 'nationality')
+    search_fields = ('name', 'team__name')
     list_filter = ('role', 'nationality', 'is_active', 'team')
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display = ('match_number', 'season', 'date', 'team1', 'team2', 'winner')
-    search_fields = ('team1__name', 'team2__name', 'venue')
+    list_display = ('match_number', 'season', 'date', 'venue', 'team1', 'team2', 'winner')
+    search_fields = ('match_number', 'venue', 'team1__name', 'team2__name')
     list_filter = ('season', 'date', 'venue')
+    date_hierarchy = 'date'
 
 @admin.register(PlayerPerformance)
 class PlayerPerformanceAdmin(admin.ModelAdmin):
-    list_display = ('player', 'match', 'team', 'runs_scored', 'wickets_taken')
-    search_fields = ('player__name', 'team__name', 'match__match_number')
-    list_filter = ('match__season', 'match__date')
+    list_display = ('player', 'match', 'runs_scored', 'wickets_taken', 'catches')
+    search_fields = ('player__name', 'match__match_number')
+    list_filter = ('match__date', 'match__season')
+    date_hierarchy = 'match__date'
 
 @admin.register(Prediction)
 class PredictionAdmin(admin.ModelAdmin):

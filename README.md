@@ -1,6 +1,117 @@
-# IPL Cricket Prediction System
+# IPL Prediction System
 
-A comprehensive system for predicting IPL cricket match outcomes using machine learning and data analysis.
+A Django-based system for collecting IPL data and making match predictions.
+
+## Setup Instructions
+
+1. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Configure the environment:
+Create a `.env` file in the project root with the following variables:
+```bash
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=ipl_prediction
+DB_USER=postgres
+DB_PASSWORD=your_password_here
+
+# Selenium Configuration
+CHROMEDRIVER_PATH=C:/path/to/chromedriver.exe
+
+# ESPN Cricinfo Configuration
+ESPN_BASE_URL=https://www.espncricinfo.com
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=logs/data_collection.log
+
+# Data Collection Configuration
+START_YEAR=2008
+END_YEAR=2024
+DATA_DIR=data/raw
+PROCESSED_DIR=data/processed
+BACKUP_DIR=data/backup
+```
+
+4. Set up the database:
+- Create a PostgreSQL database named `ipl_prediction`
+- Update the database credentials in `.env`
+
+5. Run migrations:
+```bash
+python manage.py migrate
+```
+
+6. Install ChromeDriver:
+- Download ChromeDriver from https://sites.google.com/chromium.org/driver/
+- Update the path in `.env`
+
+## Configuration
+
+The system uses the following configuration files:
+
+1. `predictions/settings.py`: Main configuration file
+2. `.env`: Environment variables (sensitive data)
+3. `requirements.txt`: Python dependencies
+
+## Data Collection
+
+To collect data:
+
+```bash
+python manage.py collect_data
+```
+
+This will:
+1. Scrape data from ESPN Cricinfo
+2. Process and clean the data
+3. Store it in the database
+
+## Testing
+
+Run tests with:
+
+```bash
+pytest
+```
+
+## Project Structure
+
+```
+ipl/
+├── predictions/
+│   ├── management/
+│   │   └── commands/
+│   │       └── collect_data.py
+│   ├── scrapers/
+│   │   ├── base_scraper.py
+│   │   └── espncricinfo.py
+│   ├── processors/
+│   │   └── data_processor.py
+│   ├── storage/
+│   │   └── storage_manager.py
+│   ├── models.py
+│   ├── admin.py
+│   └── settings.py
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── backup/
+├── logs/
+├── tests/
+├── requirements.txt
+└── manage.py
+```
 
 ## Project Overview
 

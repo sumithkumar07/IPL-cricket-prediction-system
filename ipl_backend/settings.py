@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_yasg",
     "predictions",
+    "data_collection",
 ]
 
 MIDDLEWARE = [
