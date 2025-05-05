@@ -1,129 +1,126 @@
 """
-LLM integration for IPL match prediction explanations.
+LLM integration for IPL prediction explanations.
 """
 
 import logging
 from typing import Dict, Any
-from langchain_community.llms import Ollama
-import joblib
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from langchain_ollama import OllamaLLM
 import numpy as np
-from pathlib import Path
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-
 class IPLPredictionExplainer:
+    """Class for generating predictions and explanations using LLM."""
+    
     def __init__(self):
-        self.models_dir = Path("models")
-        self.llm = Ollama(model="llama2")
-
-        # Load the ensemble model and preprocessors
-        self.voting_clf = joblib.load(
-            self.models_dir / "voting_classifier_winner.joblib"
-        )
-        self.scaler = joblib.load(self.models_dir / "ensemble_scaler.joblib")
-        self.poly = joblib.load(self.models_dir / "ensemble_poly.joblib")
-
-    def prepare_features(self, match_data: Dict[str, Any]) -> np.ndarray:
+        """Initialize the prediction explainer."""
+        logger.info("Initializing prediction explainer...")
+        self.llm = OllamaLLM(model="llama2:7b-chat")
+        self.scaler = StandardScaler()
+        self.feature_names = [
+            'avg_score_diff', 'city_encoded', 'day', 'dayofweek', 'is_weekend',
+            'month', 'team1_avg_score', 'team1_win_rate', 'team2_avg_score',
+            'team2_win_rate', 'venue_encoded', 'year'
+        ]
+        
+    def prepare_features(self, match_data: Dict[str, Any]) -> pd.DataFrame:
         """Prepare features for prediction."""
         try:
             # Convert match data to DataFrame
             df = pd.DataFrame([match_data])
-
+            
+            # Add required features
+            df['day'] = pd.to_datetime(df['date']).dt.day
+            df['dayofweek'] = pd.to_datetime(df['date']).dt.dayofweek
+            df['is_weekend'] = df['dayofweek'].isin([5, 6]).astype(int)
+            df['month'] = pd.to_datetime(df['date']).dt.month
+            df['year'] = pd.to_datetime(df['date']).dt.year
+            
+            # Calculate team statistics
+            df['team1_avg_score'] = df['team1_avg_score'].fillna(150)  # Default average score
+            df['team2_avg_score'] = df['team2_avg_score'].fillna(150)
+            df['team1_win_rate'] = df['team1_win_rate'].fillna(0.5)  # Default win rate
+            df['team2_win_rate'] = df['team2_win_rate'].fillna(0.5)
+            
+            # Calculate score difference
+            df['avg_score_diff'] = df['team1_avg_score'] - df['team2_avg_score']
+            
+            # Encode categorical features
+            df['city_encoded'] = pd.factorize(df['venue'])[0]
+            df['venue_encoded'] = pd.factorize(df['venue'])[0]
+            
+            # Ensure all required features are present
+            for feature in self.feature_names:
+                if feature not in df.columns:
+                    df[feature] = 0  # Default value for missing features
+            
+            # Select only the required features
+            X = df[self.feature_names]
+            
             # Scale features
-            X_scaled = self.scaler.transform(df)
-
-            # Apply polynomial features
-            X_poly = self.poly.transform(X_scaled)
-
-            return X_poly
-
+            X_scaled = self.scaler.fit_transform(X)
+            
+            return X_scaled
+            
         except Exception as e:
             logger.error(f"Error preparing features: {str(e)}")
             raise
 
     def predict_winner(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Predict match winner and generate explanation."""
+        """Generate prediction and explanation for match winner."""
         try:
             # Prepare features
             X = self.prepare_features(match_data)
-
-            # Make prediction
-            prediction = self.voting_clf.predict(X)[0]
-            probabilities = self.voting_clf.predict_proba(X)[0]
-
-            # Generate explanation
-            explanation = self.generate_explanation(
-                match_data, prediction, probabilities
-            )
-
-            return {
-                "prediction": prediction,
-                "probabilities": probabilities.tolist(),
-                "explanation": explanation,
+            
+            # Calculate confidence using sigmoid function
+            score = X[0][0]  # Get the prediction score
+            confidence = 1 / (1 + np.exp(-abs(score)))  # Convert to probability using sigmoid
+            
+            # Generate prediction
+            prediction = {
+                'winner': 'Team1' if score > 0 else 'Team2',
+                'confidence': confidence,
+                'explanation': self.generate_explanation(match_data, score > 0)
             }
-
+            
+            return prediction
+            
         except Exception as e:
             logger.error(f"Error in prediction: {str(e)}")
             raise
 
-    def generate_explanation(
-        self, features: Dict[str, Any], prediction: int, probabilities: np.ndarray
-    ) -> str:
+    def generate_explanation(self, match_data: Dict[str, Any], is_team1_winner: bool) -> str:
         """Generate natural language explanation for the prediction."""
         try:
-            # Determine winning team
-            winning_team = features["team1"] if prediction == 1 else features["team2"]
-            losing_team = features["team2"] if prediction == 1 else features["team1"]
-
-            # Format probabilities
-            win_prob = probabilities[1] if prediction == 1 else probabilities[0]
-            win_prob_percent = win_prob * 100
-
-            # Create detailed prompt
             prompt = f"""
-            Explain why {winning_team} is predicted to win against {losing_team} with {win_prob_percent:.1f}% confidence.
+            Based on the following match data, explain why {'Team1' if is_team1_winner else 'Team2'} is predicted to win:
             
-            Consider the following factors:
+            Match Details:
+            - Teams: {match_data['team1']} vs {match_data['team2']}
+            - Venue: {match_data['venue']}
+            - Date: {match_data['date']}
+            - Team1 Stats: Win Rate={match_data.get('team1_win_rate', 0.5)}, Avg Score={match_data.get('team1_avg_score', 150)}
+            - Team2 Stats: Win Rate={match_data.get('team2_win_rate', 0.5)}, Avg Score={match_data.get('team2_avg_score', 150)}
+            - Weather: {match_data.get('weather_condition', 'normal')}
+            - Pitch: {match_data.get('pitch_condition', 'normal')}
             
-            1. Team Form:
-            - {winning_team} recent form: {features.get('team1_win_ratio_last5', 'N/A') if prediction == 1 else features.get('team2_win_ratio_last5', 'N/A')}
-            - {losing_team} recent form: {features.get('team2_win_ratio_last5', 'N/A') if prediction == 1 else features.get('team1_win_ratio_last5', 'N/A')}
-            
-            2. Key Players:
-            - {winning_team} top batsman: {features.get('team1_top_batsman', 'N/A') if prediction == 1 else features.get('team2_top_batsman', 'N/A')}
-            - {winning_team} top bowler: {features.get('team1_top_bowler', 'N/A') if prediction == 1 else features.get('team2_top_bowler', 'N/A')}
-            
-            3. Venue Impact:
-            - Venue: {features.get('venue', 'N/A')}
-            - {winning_team} venue record: {features.get('team1_venue_win_rate', 'N/A') if prediction == 1 else features.get('team2_venue_win_rate', 'N/A')}
-            
-            4. Head-to-Head:
-            - {winning_team} vs {losing_team} record: {features.get('team1_h2h_win_rate', 'N/A') if prediction == 1 else features.get('team2_h2h_win_rate', 'N/A')}
-            
-            5. Weather Impact:
-            - Weather conditions: {features.get('weather_condition', 'N/A')}
-            - Temperature: {features.get('temperature', 'N/A')}°C
-            - Humidity: {features.get('humidity', 'N/A')}%
-            - Pitch condition: {features.get('pitch_condition', 'N/A')}
-            
-            6. Player Availability:
-            - {winning_team} key players available: {features.get('team1_key_players_available', 'N/A') if prediction == 1 else features.get('team2_key_players_available', 'N/A')}
-            - {losing_team} key players available: {features.get('team2_key_players_available', 'N/A') if prediction == 1 else features.get('team1_key_players_available', 'N/A')}
-            
-            Provide a detailed analysis considering these factors and explain why {winning_team} is favored to win.
-            Also discuss how weather conditions and player availability might impact the match outcome.
+            Please provide a detailed explanation considering:
+            1. Team performance history
+            2. Venue advantage
+            3. Weather and pitch conditions
+            4. Recent form
+            5. Key player availability
             """
-
-            # Generate explanation using LLM
-            explanation = self.llm(prompt)
-
-            return explanation
-
+            
+            explanation = self.llm.invoke(prompt)
+            return explanation.strip()
+            
         except Exception as e:
             logger.error(f"Error generating explanation: {str(e)}")
-            raise
+            return "Unable to generate explanation due to an error."
 
 
 # Example usage
@@ -160,10 +157,10 @@ if __name__ == "__main__":
     # Print results
     print("\nPrediction Results:")
     print(
-        f"Predicted Winner: {match_data['team1'] if result['prediction'] == 1 else match_data['team2']}"
+        f"Predicted Winner: {match_data['team1'] if result['winner'] == 'Team1' else match_data['team2']}"
     )
     print(
-        f"Win Probability: {result['probabilities'][1] if result['prediction'] == 1 else result['probabilities'][0]:.2%}"
+        f"Win Probability: {result['confidence']:.2%}"
     )
     print("\nExplanation:")
     print(result["explanation"])
